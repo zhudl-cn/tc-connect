@@ -35,6 +35,7 @@ type Event struct {
 // AgentSession represents a running interactive agent process.
 type AgentSession interface {
 	Send(prompt string) error
+	Cancel()
 	Events() <-chan Event
 	Close() error
 }

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -46,6 +47,20 @@ func (e *Engine) Stop() error {
 func (e *Engine) handlePlatformMessage(p Platform, msg *Message) {
 	ctx := context.Background()
 
+	// Handle stop command — cancel the current session's running command.
+	var cmdMsg struct {
+		Cmd string `json:"__cmd"`
+	}
+	if json.Unmarshal([]byte(msg.Content), &cmdMsg) == nil && cmdMsg.Cmd == "stop" {
+		e.sessionsMutex.RLock()
+		session, exists := e.sessions[msg.SessionKey]
+		e.sessionsMutex.RUnlock()
+		if exists {
+			session.Cancel()
+		}
+		return
+	}
+
 	e.sessionsMutex.Lock()
 	session, exists := e.sessions[msg.SessionKey]
 	e.sessionsMutex.Unlock()
@@ -73,12 +88,16 @@ func (e *Engine) handlePlatformMessage(p Platform, msg *Message) {
 	}
 }
 
-// listenSessionEvents reads from the agent's channel and forwards backwards to the platform.
+// listenSessionEvents reads from the agent's channel and forwards to the platform as JSON events.
 func (e *Engine) listenSessionEvents(ctx context.Context, sessionKey string, session AgentSession) {
 	for evt := range session.Events() {
-		// Relay text or errors back to the platform
-		if evt.Type == "text" || evt.Type == "error" {
-			e.platform.Reply(ctx, sessionKey, evt.Content)
+		switch evt.Type {
+		case "chunk", "done", "text", "error":
+			data, _ := json.Marshal(map[string]string{
+				"type":    evt.Type,
+				"content": evt.Content,
+			})
+			e.platform.Reply(ctx, sessionKey, string(data))
 		}
 	}
 

@@ -2,265 +2,489 @@ import { useState, useEffect, useRef } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import {
-  Box,
-  Drawer,
-  Typography,
-  TextField,
-  IconButton,
-  Avatar,
-  Button,
-  Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-  InputAdornment
+  Box, Drawer, Typography, TextField, IconButton,
+  Avatar, Button, Tooltip, Dialog, DialogTitle,
+  DialogContent, DialogActions, List, ListItemButton,
+  ListItemText, Divider, InputAdornment,
+  Menu, MenuItem, CircularProgress,
 } from '@mui/material';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import AddIcon from '@mui/icons-material/Add';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import StopIcon from '@mui/icons-material/Stop';
-import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import TuneIcon from '@mui/icons-material/Tune';
-import CloseIcon from '@mui/icons-material/Close';
-import SearchIcon from '@mui/icons-material/Search';
+import ArrowUpwardIcon        from '@mui/icons-material/ArrowUpward';
+import AddIcon                from '@mui/icons-material/Add';
+import EditOutlinedIcon       from '@mui/icons-material/EditOutlined';
+import KeyboardArrowDownIcon  from '@mui/icons-material/KeyboardArrowDown';
+import StopIcon               from '@mui/icons-material/Stop';
+import DeleteOutlineIcon      from '@mui/icons-material/DeleteOutline';
+import TuneIcon               from '@mui/icons-material/Tune';
+import CloseIcon              from '@mui/icons-material/Close';
+import SearchIcon             from '@mui/icons-material/Search';
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
+import ContentCopyIcon        from '@mui/icons-material/ContentCopy';
+import CheckIcon              from '@mui/icons-material/Check';
+import TranslateIcon          from '@mui/icons-material/Translate';
+import ChatBubbleOutlineIcon  from '@mui/icons-material/ChatBubbleOutline';
 
-/* ═══════════════════════════════════════════════════════
-   ChatGPT-exact Light Theme
-   ═══════════════════════════════════════════════════════ */
+import TranslatePage from './TranslatePage';
+
+/* ─── Theme ──────────────────────────────────────────────── */
 const theme = createTheme({
   palette: {
     mode: 'light',
-    background: {
-      default: '#ffffff',
-      paper:   '#f9f9f9',
-    },
-    text: {
-      primary:   '#0d0d0d',
-      secondary: '#6b6b6b',
-    },
+    background: { default: '#ffffff', paper: '#f9f9f9' },
+    text: { primary: '#0d0d0d', secondary: '#6b6b6b' },
   },
   typography: {
-    fontFamily: '"Söhne", "Inter", "Helvetica Neue", "Arial", sans-serif',
+    fontFamily: '"Söhne","Inter",ui-sans-serif,system-ui,-apple-system,sans-serif',
   },
   components: {
-    MuiButton:      { styleOverrides: { root: { textTransform: 'none' } } },
-    MuiIconButton:  { styleOverrides: { root: { color: '#6b6b6b' } } },
+    MuiButton:     { styleOverrides: { root: { textTransform: 'none' } } },
+    MuiIconButton: { styleOverrides: { root: { color: '#6b6b6b' } } },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          boxShadow: 'none',
+          borderRight: 'none',
+        },
+      },
+    },
   },
 });
 
 const DRAWER_W = 260;
+const MAX_W    = 720;
 
+
+/* ─── Markdown components ────────────────────────────────── */
+const mdComponents = {
+  p: ({ children }) => (
+    <Typography component="p" sx={{ m: 0, mb: 1.5, lineHeight: 1.75, fontSize: '0.95rem', '&:last-child': { mb: 0 } }}>
+      {children}
+    </Typography>
+  ),
+  pre: ({ children }) => (
+    <Box sx={{ my: 2, borderRadius: '12px', overflow: 'hidden', bgcolor: '#1e1e1e' }}>
+      <Box component="pre" sx={{ m: 0, p: '16px 20px', overflowX: 'auto', fontFamily: '"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace', fontSize: '0.875rem', lineHeight: 1.65, color: '#d4d4d4' }}>
+        {children}
+      </Box>
+    </Box>
+  ),
+  code: ({ className, children, ...props }) => {
+    if (className) {
+      // fenced block (inside <pre>)
+      return <code className={className} style={{ fontFamily: 'inherit', color: '#d4d4d4' }} {...props}>{children}</code>;
+    }
+    // inline code
+    return (
+      <Box component="code" sx={{ bgcolor: 'rgba(0,0,0,0.07)', px: 0.7, py: 0.15, borderRadius: '5px', fontFamily: '"SFMono-Regular",Consolas,monospace', fontSize: '0.875em' }} {...props}>
+        {children}
+      </Box>
+    );
+  },
+  h1: ({ children }) => <Typography variant="h5"      fontWeight={700} sx={{ mt: 2.5, mb: 1 }}>{children}</Typography>,
+  h2: ({ children }) => <Typography variant="h6"      fontWeight={700} sx={{ mt: 2,   mb: 0.8 }}>{children}</Typography>,
+  h3: ({ children }) => <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 1.5, mb: 0.5 }}>{children}</Typography>,
+  ul: ({ children }) => <Box component="ul" sx={{ pl: 3, my: 0.5 }}>{children}</Box>,
+  ol: ({ children }) => <Box component="ol" sx={{ pl: 3, my: 0.5 }}>{children}</Box>,
+  li: ({ children }) => <Box component="li" sx={{ mb: 0.4, lineHeight: 1.75, fontSize: '0.95rem' }}>{children}</Box>,
+  blockquote: ({ children }) => (
+    <Box sx={{ borderLeft: '3px solid #d9d9d9', pl: 2, my: 1.5, color: 'text.secondary' }}>{children}</Box>
+  ),
+  a: ({ href, children }) => (
+    <Box component="a" href={href} target="_blank" rel="noreferrer" sx={{ color: '#0d0d0d', textDecorationColor: '#b4b4b4', '&:hover': { textDecorationColor: '#0d0d0d' } }}>
+      {children}
+    </Box>
+  ),
+  table: ({ children }) => (
+    <Box sx={{ overflowX: 'auto', my: 2 }}>
+      <Box component="table" sx={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.9rem' }}>{children}</Box>
+    </Box>
+  ),
+  th: ({ children }) => <Box component="th" sx={{ border: '1px solid #e5e5e5', px: 2, py: 1, textAlign: 'left', fontWeight: 600, bgcolor: '#f9f9f9' }}>{children}</Box>,
+  td: ({ children }) => <Box component="td" sx={{ border: '1px solid #e5e5e5', px: 2, py: 1 }}>{children}</Box>,
+};
+
+/* ─── App ────────────────────────────────────────────────── */
 export default function App() {
   const [messages,    setMessages]    = useState([]);
   const [input,       setInput]       = useState('');
-  const [sysInst,     setSysInst]     = useState('始终使用中文并以 Markdown 格式回复');
+  const [sysInst,     setSysInst]     = useState(() => localStorage.getItem('sysInst') || '始终使用中文并以 Markdown 格式回复');
   const [connected,   setConnected]   = useState(false);
   const [sidebar,     setSidebar]     = useState(true);
   const [generating,  setGenerating]  = useState(false);
   const [settingsDlg, setSettingsDlg] = useState(false);
-  const [history,     setHistory]     = useState([]);
+  const [history,     setHistory]     = useState(() => {
+    try { return JSON.parse(localStorage.getItem('history') || '[]'); } catch { return []; }
+  });
+  const [copied,      setCopied]      = useState(null);
+  const [mode,        setMode]        = useState('chat'); // 'chat' | 'translate'
+  const [models,      setModels]      = useState([]);
+  const [modelAnchor, setModelAnchor] = useState(null);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [searchOpen,  setSearchOpen]  = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const ws        = useRef(null);
-  const endRef    = useRef(null);
-  const inputRef  = useRef(null);
+  const ws           = useRef(null);
+  const endRef       = useRef(null);
+  const inputRef     = useRef(null);
+  const fileInputRef = useRef(null);
+  const msgHandlerRef = useRef(null);
 
-  /* ── WebSocket ─────────────────────────────────────── */
+  /* set up chat handler whenever we're in chat mode */
+  useEffect(() => {
+    if (mode === 'chat') {
+      msgHandlerRef.current = (data) => {
+        let evt;
+        try { evt = JSON.parse(data); } catch {
+          // plain-text fallback
+          setMessages(p => [...p, { role: 'assistant', text: data }]);
+          setGenerating(false);
+          return;
+        }
+        if (evt.type === 'chunk') {
+          setMessages(p => {
+            const last = p[p.length - 1];
+            if (last?.role === 'assistant' && last.streaming) {
+              return [...p.slice(0, -1), { ...last, text: last.text + evt.content }];
+            }
+            return [...p, { role: 'assistant', text: evt.content, streaming: true }];
+          });
+        } else if (evt.type === 'done') {
+          setMessages(p => {
+            const last = p[p.length - 1];
+            if (last?.streaming) {
+              return [...p.slice(0, -1), { role: 'assistant', text: last.text }];
+            }
+            return p;
+          });
+          setGenerating(false);
+        } else if (evt.type === 'text') {
+          setMessages(p => [...p, { role: 'assistant', text: evt.content }]);
+          setGenerating(false);
+        } else if (evt.type === 'error') {
+          setMessages(p => [...p, { role: 'assistant', text: `⚠️ ${evt.content}` }]);
+          setGenerating(false);
+        }
+      };
+    }
+  }, [mode]);
+
+  /* fetch model list from backend */
+  useEffect(() => {
+    const base = location.port === '5173' ? 'http://localhost:8080' : '';
+    fetch(`${base}/api/models`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setModels(data);
+          setSelectedModel(data[0]);
+        }
+      })
+      .catch(() => {}); // backend may not be running yet
+  }, []);
+
+  /* persist history to localStorage whenever it changes */
+  useEffect(() => { localStorage.setItem('history', JSON.stringify(history)); }, [history]);
+
   useEffect(() => { wsConnect(); return () => ws.current?.close(); }, []);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, generating]);
 
-  const wsConnect = () => {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url   = location.port === '5173' ? 'ws://localhost:8080/ws' : `${proto}//${location.host}/ws`;
+  function getOrCreateSessionId() {
+    let id = localStorage.getItem('session_id');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('session_id', id);
+    }
+    return id;
+  }
+
+  function wsConnect() {
+    const proto     = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const sessionId = getOrCreateSessionId();
+    const url       = location.port === '5173'
+      ? `ws://localhost:8080/ws?session_id=${sessionId}`
+      : `${proto}//${location.host}/ws?session_id=${sessionId}`;
     ws.current  = new WebSocket(url);
     ws.current.onopen    = ()  => setConnected(true);
-    ws.current.onmessage = (e) => { setMessages(p => [...p, { role: 'assistant', text: e.data }]); setGenerating(false); };
+    ws.current.onmessage = (e) => { if (msgHandlerRef.current) msgHandlerRef.current(e.data); };
     ws.current.onclose   = ()  => { setConnected(false); setTimeout(wsConnect, 3000); };
-  };
+  }
 
-  /* ── Actions ───────────────────────────────────────── */
-  const newChat = () => {
+  function newChat() {
     if (messages.length) {
-      const title = messages.find(m => m.role === 'user')?.text?.slice(0, 28) || 'New conversation';
+      const title = messages.find(m => m.role === 'user')?.text?.slice(0, 30) || '新对话';
       setHistory(h => [{ id: Date.now(), title }, ...h]);
     }
     setMessages([]);
-  };
+    setMode('chat');
+  }
 
-  const send = (override) => {
-    const text = (override || input).trim();
+  function send(override) {
+    const text = (override !== undefined ? override : input).trim();
     if (!text) return;
-    const payload = JSON.stringify({ system_instruction: sysInst, user_prompt: text }, null, 2);
+    const payload = JSON.stringify({ system_instruction: sysInst, user_prompt: text, model: selectedModel });
     setMessages(p => [...p, { role: 'user', text }]);
     setInput('');
     setGenerating(true);
-    if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(payload);
-    else { setMessages(p => [...p, { role: 'assistant', text: '⚠️ Disconnected...' }]); setGenerating(false); }
-  };
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(payload);
+    } else {
+      setMessages(p => [...p, { role: 'assistant', text: '⚠️ 未连接到后端，请检查服务是否运行。' }]);
+      setGenerating(false);
+    }
+  }
 
-  const onKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
+  function onKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  }
+
+  function copyMsg(text, idx) {
+    navigator.clipboard.writeText(text);
+    setCopied(idx);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  async function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const base = location.port === '5173' ? 'http://localhost:8080' : '';
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch(`${base}/api/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      const attachment = `\n\n[文件: ${data.name}]\n\`\`\`\n${data.content}\n\`\`\``;
+      setInput(prev => prev + attachment);
+    } catch {
+      setInput(prev => prev + '\n\n[附件上传失败]');
+    }
+    e.target.value = '';
+  }
+
+  const displayedHistory = searchQuery
+    ? history.filter(h => h.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    : history;
 
   const isEmpty = messages.length === 0 && !generating;
 
-  /* ── Sidebar Content ───────────────────────────────── */
-  const sidebarContent = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#f9f9f9' }}>
-
-      {/* Top row: logo + new-chat */}
-      <Box sx={{ px: 1.5, pt: 1.5, pb: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Avatar sx={{ width: 28, height: 28, bgcolor: '#000', fontSize: '0.75rem', fontWeight: 700 }}>C</Avatar>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="New chat">
-            <IconButton size="small" onClick={newChat}><EditOutlinedIcon sx={{ fontSize: 20 }} /></IconButton>
-          </Tooltip>
-          <Tooltip title="Close sidebar">
-            <IconButton size="small" onClick={() => setSidebar(false)}><ViewSidebarOutlinedIcon sx={{ fontSize: 20 }} /></IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
-
-      {/* Menu items */}
-      <List dense sx={{ px: 1 }}>
-        <ListItemButton onClick={newChat} sx={{ borderRadius: 2, mb: 0.3 }}>
-          <ListItemIcon sx={{ minWidth: 32 }}><EditOutlinedIcon sx={{ fontSize: 18 }} /></ListItemIcon>
-          <ListItemText primary="新聊天" primaryTypographyProps={{ fontSize: '0.9rem' }} />
-        </ListItemButton>
-        <ListItemButton sx={{ borderRadius: 2, mb: 0.3 }}>
-          <ListItemIcon sx={{ minWidth: 32 }}><SearchIcon sx={{ fontSize: 18 }} /></ListItemIcon>
-          <ListItemText primary="搜索聊天" primaryTypographyProps={{ fontSize: '0.9rem' }} />
-        </ListItemButton>
-      </List>
-
-      <Divider sx={{ mx: 2, borderColor: 'rgba(0,0,0,0.06)' }} />
-
-      {/* Chat history */}
-      <Box sx={{ flex: 1, overflowY: 'auto', px: 1, pt: 1 }}>
-        {history.length > 0 && (
-          <Typography variant="overline" sx={{ px: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.7rem' }}>
-            Today
-          </Typography>
-        )}
-        <List dense disablePadding>
-          {history.map(h => (
-            <ListItemButton key={h.id} sx={{ borderRadius: 2, mb: 0.3, '&:hover .del': { opacity: 1 } }}>
-              <ListItemText primary={h.title} primaryTypographyProps={{ noWrap: true, fontSize: '0.88rem', color: 'text.primary' }} />
-              <IconButton className="del" size="small" sx={{ opacity: 0, transition: 'opacity 0.15s' }}
-                onClick={(e) => { e.stopPropagation(); setHistory(p => p.filter(c => c.id !== h.id)); }}>
-                <DeleteOutlineIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </ListItemButton>
-          ))}
-        </List>
-        {!history.length && (
-          <Typography variant="body2" sx={{ textAlign: 'center', py: 4, color: 'text.secondary', opacity: 0.4, fontSize: '0.85rem' }}>
-            暂无聊天记录
-          </Typography>
-        )}
-      </Box>
-
-      {/* Bottom */}
-      <Box sx={{ p: 1.5, borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-        <ListItemButton onClick={() => setSettingsDlg(true)} sx={{ borderRadius: 2, py: 1 }}>
-          <Avatar sx={{ width: 28, height: 28, mr: 1.5, bgcolor: '#e5e5e5', color: '#000', fontSize: '0.8rem', fontWeight: 600 }}>U</Avatar>
-          <Typography variant="body2" fontWeight={500} sx={{ flex: 1 }}>User</Typography>
-          <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: connected ? '#22c55e' : '#ef4444' }} />
-        </ListItemButton>
-      </Box>
-    </Box>
-  );
-
-  /* ── Settings Dialog ───────────────────────────────── */
-  const settingsDialog = (
-    <Dialog open={settingsDlg} onClose={() => setSettingsDlg(false)} maxWidth="sm" fullWidth
-      PaperProps={{ sx: { borderRadius: 3 } }}>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><TuneIcon fontSize="small" /> Settings</Box>
-        <IconButton onClick={() => setSettingsDlg(false)} size="small"><CloseIcon fontSize="small" /></IconButton>
-      </DialogTitle>
-      <DialogContent>
-        <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-          System Instruction — prepended as JSON to every prompt.
-        </Typography>
-        <TextField fullWidth multiline minRows={4} maxRows={10} value={sysInst}
-          onChange={e => setSysInst(e.target.value)} variant="outlined"
-          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontFamily: 'monospace', fontSize: '0.9rem' } }} />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={() => setSettingsDlg(false)} variant="contained"
-          sx={{ bgcolor: '#0d0d0d', '&:hover': { bgcolor: '#333' }, borderRadius: 2, px: 3, fontWeight: 600 }}>
-          Save
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-
-  /* ── The ChatGPT-style input box (reused) ──────────── */
+  /* ── Input box ─────────────────────────────────────────── */
   const chatInput = (
-    <Box sx={{ maxWidth: '100%', width: '100%', position: 'relative' }}>
+    <Box sx={{ width: '100%', maxWidth: MAX_W, mx: 'auto', position: 'relative' }}>
       <TextField
         inputRef={inputRef}
         fullWidth
         multiline
         maxRows={8}
-        placeholder="提问题，尽管问"
+        placeholder="给 Copilot CLI 发消息"
         value={input}
         onChange={e => setInput(e.target.value)}
         onKeyDown={onKey}
         variant="outlined"
         InputProps={{
           startAdornment: (
-            <InputAdornment position="start">
-              <IconButton size="small" sx={{ color: '#6b6b6b' }}><AddIcon /></IconButton>
+            <InputAdornment position="start" sx={{ alignSelf: 'flex-end', mb: '7px' }}>
+              <Tooltip title="上传文件">
+                <IconButton size="small" onClick={() => fileInputRef.current?.click()}><AddIcon /></IconButton>
+              </Tooltip>
             </InputAdornment>
           ),
         }}
         sx={{
           '& .MuiOutlinedInput-root': {
             bgcolor: '#ffffff',
-            borderRadius: '26px',
-            py: '4px',
-            pr: '50px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-            '& fieldset': { borderColor: '#e5e5e5' },
-            '&:hover fieldset': { borderColor: '#d4d4d4' },
-            '&.Mui-focused fieldset': { borderColor: '#c4c4c4', borderWidth: 1 },
-          }
+            borderRadius: '28px',
+            py: '7px',
+            pr: '56px',
+            alignItems: 'flex-end',
+            boxShadow: '0 0 0 1px #e5e5e5, 0 2px 6px rgba(0,0,0,0.06)',
+            '& fieldset': { border: 'none' },
+            '&:hover':        { boxShadow: '0 0 0 1px #d0d0d0, 0 2px 6px rgba(0,0,0,0.08)' },
+            '&.Mui-focused':  { boxShadow: '0 0 0 1px #c0c0c0, 0 2px 8px rgba(0,0,0,0.1)' },
+          },
+          '& .MuiInputBase-input': { py: '4px', lineHeight: 1.65, fontSize: '0.95rem' },
         }}
       />
-      <Box sx={{ position: 'absolute', right: 10, bottom: 10 }}>
+      <Box sx={{ position: 'absolute', right: 8, bottom: 7 }}>
         {generating ? (
-          <IconButton size="small" sx={{ bgcolor: '#0d0d0d', color: '#fff', '&:hover': { bgcolor: '#333' }, width: 32, height: 32 }}>
-            <StopIcon sx={{ fontSize: 18 }} />
-          </IconButton>
+          <Tooltip title="停止生成">
+            <IconButton size="small" onClick={() => {
+              if (ws.current?.readyState === WebSocket.OPEN) {
+                ws.current.send(JSON.stringify({ __cmd: 'stop' }));
+              }
+              setGenerating(false);
+            }} sx={{ bgcolor: '#0d0d0d', color: '#fff', '&:hover': { bgcolor: '#444' }, width: 34, height: 34 }}>
+              <StopIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+          </Tooltip>
         ) : (
-          <IconButton
-            size="small"
-            disabled={!input.trim()}
-            onClick={() => send()}
-            sx={{
-              bgcolor: input.trim() ? '#0d0d0d' : '#e5e5e5',
-              color:   input.trim() ? '#fff'    : '#b4b4b4',
-              '&:hover': { bgcolor: input.trim() ? '#333' : '#e5e5e5' },
-              width: 32, height: 32,
-              transition: 'all 0.2s',
-            }}
-          >
-            <ArrowUpwardIcon sx={{ fontSize: 18 }} />
-          </IconButton>
+          <Tooltip title="发送 (Enter)">
+            <span>
+              <IconButton
+                size="small"
+                disabled={!input.trim()}
+                onClick={() => send()}
+                sx={{
+                  bgcolor: input.trim() ? '#0d0d0d' : '#e5e5e5',
+                  color:   input.trim() ? '#fff'    : '#a4a4a4',
+                  '&:hover': { bgcolor: input.trim() ? '#333' : '#e5e5e5' },
+                  '&.Mui-disabled': { bgcolor: '#e5e5e5', color: '#a4a4a4' },
+                  width: 34, height: 34,
+                  transition: 'all 0.15s',
+                }}
+              >
+                <ArrowUpwardIcon sx={{ fontSize: 17 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
         )}
       </Box>
     </Box>
+  );
+
+  /* ── Sidebar ───────────────────────────────────────────── */
+  const sidebarContent = (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#f9f9f9' }}>
+
+      {/* Logo row */}
+      <Box sx={{ px: 1.5, pt: 1.5, pb: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 0.5 }}>
+          <Avatar sx={{ width: 26, height: 26, bgcolor: '#000', fontSize: '0.72rem', fontWeight: 700 }}>C</Avatar>
+          <Typography fontWeight={700} fontSize="0.92rem" color="text.primary">Copilot CLI</Typography>
+        </Box>
+        <Box sx={{ display: 'flex' }}>
+          <Tooltip title="新建聊天">
+            <IconButton size="small" onClick={newChat}><EditOutlinedIcon sx={{ fontSize: 19 }} /></IconButton>
+          </Tooltip>
+          <Tooltip title="收起侧边栏">
+            <IconButton size="small" onClick={() => setSidebar(false)}><ViewSidebarOutlinedIcon sx={{ fontSize: 19 }} /></IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* Nav buttons */}
+      <Box sx={{ px: 1, pb: 0.5 }}>
+        <List dense disablePadding>
+          <ListItemButton
+            onClick={() => setMode('chat')}
+            sx={{
+              borderRadius: 2, mb: 0.2,
+              bgcolor: mode === 'chat' ? 'rgba(0,0,0,0.07)' : 'transparent',
+              '&:hover': { bgcolor: mode === 'chat' ? 'rgba(0,0,0,0.09)' : 'rgba(0,0,0,0.05)' },
+            }}
+          >
+            <Box sx={{ minWidth: 32, display: 'flex', alignItems: 'center' }}>
+              <ChatBubbleOutlineIcon sx={{ fontSize: 17, color: '#6b6b6b' }} />
+            </Box>
+            <ListItemText primary="聊天" primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: mode === 'chat' ? 600 : 400 }} />
+          </ListItemButton>
+
+          <ListItemButton
+            onClick={() => setMode('translate')}
+            sx={{
+              borderRadius: 2, mb: 0.2,
+              bgcolor: mode === 'translate' ? 'rgba(0,0,0,0.07)' : 'transparent',
+              '&:hover': { bgcolor: mode === 'translate' ? 'rgba(0,0,0,0.09)' : 'rgba(0,0,0,0.05)' },
+            }}
+          >
+            <Box sx={{ minWidth: 32, display: 'flex', alignItems: 'center' }}>
+              <TranslateIcon sx={{ fontSize: 17, color: '#6b6b6b' }} />
+            </Box>
+            <ListItemText primary="翻译" primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: mode === 'translate' ? 600 : 400 }} />
+          </ListItemButton>
+
+          <ListItemButton onClick={() => { setSearchOpen(s => !s); setSearchQuery(''); }}
+            sx={{ borderRadius: 2, mb: 0.2, bgcolor: searchOpen ? 'rgba(0,0,0,0.07)' : 'transparent', '&:hover': { bgcolor: 'rgba(0,0,0,0.05)' } }}>
+            <Box sx={{ minWidth: 32, display: 'flex', alignItems: 'center' }}>
+              <SearchIcon sx={{ fontSize: 17, color: '#6b6b6b' }} />
+            </Box>
+            <ListItemText primary="搜索聊天" primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: searchOpen ? 600 : 400 }} />
+          </ListItemButton>
+        </List>
+      </Box>
+
+      <Divider sx={{ mx: 2, borderColor: 'rgba(0,0,0,0.06)' }} />
+
+      {/* History */}
+      <Box sx={{ flex: 1, overflowY: 'auto', px: 1, pt: 0.5 }}>
+        {/* Search input */}
+        {searchOpen && (
+          <Box sx={{ px: 0.5, pb: 1, pt: 0.5 }}>
+            <TextField
+              fullWidth autoFocus size="small" placeholder="搜索对话..."
+              value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 15, color: 'text.secondary' }} /></InputAdornment> }}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: '0.8rem', bgcolor: '#fff' } }}
+            />
+          </Box>
+        )}
+        {displayedHistory.length > 0 && (
+          <Typography variant="overline" sx={{ px: 1.5, color: 'text.secondary', fontWeight: 600, fontSize: '0.68rem', display: 'block', mt: 1, mb: 0.3 }}>
+            {searchQuery ? '搜索结果' : '今天'}
+          </Typography>
+        )}
+        <List dense disablePadding>
+          {displayedHistory.map(h => (
+            <ListItemButton key={h.id} sx={{ borderRadius: 2, mb: 0.2, '&:hover .del': { opacity: 1 } }}>
+              <ListItemText
+                primary={h.title}
+                primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem', color: 'text.primary' }}
+              />
+              <IconButton className="del" size="small"
+                sx={{ opacity: 0, transition: 'opacity 0.15s', flexShrink: 0 }}
+                onClick={e => { e.stopPropagation(); setHistory(p => p.filter(c => c.id !== h.id)); }}>
+                <DeleteOutlineIcon sx={{ fontSize: 15 }} />
+              </IconButton>
+            </ListItemButton>
+          ))}
+        </List>
+        {!displayedHistory.length && (
+          <Typography variant="body2" sx={{ textAlign: 'center', py: 5, color: 'text.secondary', opacity: 0.35, fontSize: '0.82rem' }}>
+            {searchQuery ? '没有匹配的对话' : '暂无聊天记录'}
+          </Typography>
+        )}
+      </Box>
+
+      {/* User row */}
+      <Box sx={{ p: 1.5, borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+        <ListItemButton onClick={() => setSettingsDlg(true)} sx={{ borderRadius: 2, py: 0.8 }}>
+          <Avatar sx={{ width: 28, height: 28, mr: 1.5, bgcolor: '#e5e5e5', color: '#000', fontSize: '0.75rem', fontWeight: 600 }}>U</Avatar>
+          <Typography variant="body2" fontWeight={500} sx={{ flex: 1, fontSize: '0.875rem' }}>User</Typography>
+          <Tooltip title={connected ? '已连接' : '未连接'}>
+            <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: connected ? '#22c55e' : '#ef4444', flexShrink: 0 }} />
+          </Tooltip>
+        </ListItemButton>
+      </Box>
+    </Box>
+  );
+
+  /* ── Settings dialog ───────────────────────────────────── */
+  const settingsDialog = (
+    <Dialog open={settingsDlg} onClose={() => setSettingsDlg(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 600 }}>
+          <TuneIcon fontSize="small" /> 自定义设置
+        </Box>
+        <IconButton onClick={() => setSettingsDlg(false)} size="small"><CloseIcon fontSize="small" /></IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block', lineHeight: 1.6 }}>
+          系统指令 (System Instruction) — 每次发送时以 JSON 格式附加在消息前。
+        </Typography>
+        <TextField
+          fullWidth multiline minRows={4} maxRows={10} value={sysInst}
+          onChange={e => setSysInst(e.target.value)} variant="outlined"
+          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontFamily: 'monospace', fontSize: '0.875rem' } }}
+        />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+        <Button onClick={() => setSettingsDlg(false)} sx={{ color: 'text.secondary', borderRadius: 2 }}>取消</Button>
+        <Button onClick={() => { localStorage.setItem('sysInst', sysInst); setSettingsDlg(false); }} variant="contained"
+          sx={{ bgcolor: '#0d0d0d', '&:hover': { bgcolor: '#333' }, borderRadius: 2, px: 3, fontWeight: 600 }}>
+          保存
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 
   /* ═══════════════════════════════════════════════════════
@@ -269,90 +493,140 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
       {settingsDialog}
 
       <Box sx={{ display: 'flex', height: '100vh', width: '100%', overflow: 'hidden' }}>
 
         {/* Sidebar */}
         <Drawer variant="persistent" open={sidebar}
-          sx={{ width: DRAWER_W, flexShrink: 0, '& .MuiDrawer-paper': { width: DRAWER_W, borderRight: 'none' } }}>
+          sx={{ width: sidebar ? DRAWER_W : 0, flexShrink: 0, transition: 'width 0.2s', '& .MuiDrawer-paper': { width: DRAWER_W, boxSizing: 'border-box' } }}>
           {sidebarContent}
         </Drawer>
 
         {/* Main */}
-        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', bgcolor: '#ffffff' }}>
+        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', bgcolor: '#ffffff', overflow: 'hidden', minWidth: 0 }}>
 
-          {/* ── Top Bar ── */}
-          <Box sx={{ height: 48, display: 'flex', alignItems: 'center', px: 2, justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          {/* Top bar */}
+          <Box sx={{ height: 52, display: 'flex', alignItems: 'center', px: 2, justifyContent: 'space-between', flexShrink: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               {!sidebar && (
                 <>
-                  <IconButton size="small" onClick={() => setSidebar(true)} sx={{ mr: 0.5 }}>
-                    <ViewSidebarOutlinedIcon sx={{ fontSize: 20 }} />
-                  </IconButton>
-                  <IconButton size="small" onClick={newChat} sx={{ mr: 1.5 }}>
-                    <EditOutlinedIcon sx={{ fontSize: 20 }} />
-                  </IconButton>
+                  <Tooltip title="展开侧边栏">
+                    <IconButton size="small" onClick={() => setSidebar(true)}><ViewSidebarOutlinedIcon sx={{ fontSize: 19 }} /></IconButton>
+                  </Tooltip>
+                  <Tooltip title="新建聊天">
+                    <IconButton size="small" onClick={newChat}><EditOutlinedIcon sx={{ fontSize: 19 }} /></IconButton>
+                  </Tooltip>
                 </>
               )}
-              <Button endIcon={<KeyboardArrowDownIcon />}
-                sx={{ color: 'text.primary', fontSize: '1rem', fontWeight: 600, borderRadius: 2, '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' } }}>
-                Copilot CLI
+              <Button
+                endIcon={models.length === 0
+                  ? <CircularProgress size={14} thickness={5} sx={{ color: 'text.secondary' }} />
+                  : <KeyboardArrowDownIcon />}
+                onClick={e => models.length > 0 && setModelAnchor(e.currentTarget)}
+                sx={{ color: 'text.primary', fontSize: '1rem', fontWeight: 700, borderRadius: 2, px: 1.5, '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' } }}
+              >
+                {selectedModel || 'Copilot CLI'}
               </Button>
+              <Menu
+                anchorEl={modelAnchor}
+                open={Boolean(modelAnchor)}
+                onClose={() => setModelAnchor(null)}
+                slotProps={{ paper: { sx: { borderRadius: 2, minWidth: 200, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } } }}
+              >
+                {models.map(m => (
+                  <MenuItem
+                    key={m}
+                    selected={m === selectedModel}
+                    onClick={() => { setSelectedModel(m); setModelAnchor(null); }}
+                    sx={{ fontSize: '0.9rem', borderRadius: 1, mx: 0.5, '&.Mui-selected': { fontWeight: 600, bgcolor: 'rgba(0,0,0,0.06)' } }}
+                  >
+                    {m}
+                  </MenuItem>
+                ))}
+              </Menu>
             </Box>
-            <Tooltip title="Settings">
-              <IconButton onClick={() => setSettingsDlg(true)} size="small"><TuneIcon sx={{ fontSize: 20 }} /></IconButton>
+            <Tooltip title="设置">
+              <IconButton onClick={() => setSettingsDlg(true)} size="small"><TuneIcon sx={{ fontSize: 19 }} /></IconButton>
             </Tooltip>
           </Box>
 
-          {/* ── Content ── */}
-          {isEmpty ? (
-            /* Empty state: title + input centered vertically */
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: 2, pb: 16 }}>
-              <Typography variant="h5" fontWeight={700} sx={{ mb: 4, color: 'text.primary', letterSpacing: '-0.02em' }}>
+          {/* Content area */}
+          {mode === 'translate' ? (
+            <TranslatePage
+              ws={ws}
+              onRegisterHandler={(handler) => { msgHandlerRef.current = handler; }}
+              selectedModel={selectedModel}
+            />
+          ) : isEmpty ? (
+
+            /* ── Empty state ── */
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: 2, pb: 10 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '1.65rem', letterSpacing: '-0.02em', mb: 4, color: 'text.primary' }}>
                 有什么可以帮忙的？
               </Typography>
+
               {chatInput}
+
             </Box>
+
           ) : (
-            /* Chat view */
+
+            /* ── Chat view ── */
             <>
-              <Box sx={{ flex: 1, overflowY: 'auto' }}>
-                <Box sx={{ maxWidth: '100%', py: 4, px: { xs: 2, md: 4, lg: 8 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+                <Box sx={{ maxWidth: MAX_W, mx: 'auto', py: 6, px: 2, display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {messages.map((msg, i) => (
-                    <Box key={i} sx={{ display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', gap: 2 }}>
-                      <Avatar sx={{
-                        bgcolor: msg.role === 'user' ? '#e5e5e5' : '#000',
-                        color:   msg.role === 'user' ? '#000'    : '#fff',
-                        width: 32, height: 32, fontSize: '0.8rem', fontWeight: 600, flexShrink: 0,
-                      }}>
-                        {msg.role === 'user' ? 'U' : 'C'}
-                      </Avatar>
-                      <Box sx={{ maxWidth: 'calc(100% - 50px)', display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                        {msg.role === 'user' ? (
-                          <Box sx={{ bgcolor: '#f4f4f4', px: 2.5, py: 1.5, borderRadius: '20px', borderBottomRightRadius: 6 }}>
-                            <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, fontSize: '0.95rem' }}>{msg.text}</Typography>
-                          </Box>
-                        ) : (
-                          <Box sx={{ py: 0.5 }}>
-                            <Typography component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.7, fontSize: '0.95rem' }}>
+                    <Box key={i}>
+                      {msg.role === 'user' ? (
+                        /* User bubble */
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <Box sx={{ bgcolor: '#f4f4f4', px: 2.5, py: 1.5, borderRadius: '20px', borderBottomRightRadius: '6px', maxWidth: '80%' }}>
+                            <Typography sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.65, fontSize: '0.95rem' }}>
                               {msg.text}
                             </Typography>
                           </Box>
-                        )}
-                      </Box>
+                        </Box>
+                      ) : (
+                        /* Assistant message */
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', '&:hover .copy-btn': { opacity: 1 } }}>
+                          <Avatar sx={{ bgcolor: '#000', color: '#fff', width: 30, height: 30, fontSize: '0.72rem', fontWeight: 700, flexShrink: 0, mt: 0.3 }}>C</Avatar>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                              {msg.text}
+                            </ReactMarkdown>
+                            <Box sx={{ mt: 1 }}>
+                              <Tooltip title={copied === i ? '已复制' : '复制'}>
+                                <IconButton
+                                  className="copy-btn"
+                                  size="small"
+                                  onClick={() => copyMsg(msg.text, i)}
+                                  sx={{ opacity: 0, transition: 'opacity 0.15s', p: 0.6, '&:hover': { bgcolor: 'rgba(0,0,0,0.05)' } }}
+                                >
+                                  {copied === i
+                                    ? <CheckIcon sx={{ fontSize: 15, color: '#22c55e' }} />
+                                    : <ContentCopyIcon sx={{ fontSize: 15 }} />}
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </Box>
+                        </Box>
+                      )}
                     </Box>
                   ))}
-                  {generating && (
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Avatar sx={{ bgcolor: '#000', color: '#fff', width: 32, height: 32, fontSize: '0.8rem', fontWeight: 600 }}>C</Avatar>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, py: 1 }}>
+
+                  {/* Generating dots — only while waiting for first chunk */}
+                  {generating && messages[messages.length - 1]?.role !== 'assistant' && (
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                      <Avatar sx={{ bgcolor: '#000', color: '#fff', width: 30, height: 30, fontSize: '0.72rem', fontWeight: 700, flexShrink: 0 }}>C</Avatar>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 0.8 }}>
                         {[0, 1, 2].map(i => (
                           <Box key={i} sx={{
-                            width: 7, height: 7, bgcolor: '#b4b4b4', borderRadius: '50%',
+                            width: 6, height: 6, bgcolor: '#b4b4b4', borderRadius: '50%',
                             '@keyframes bounce': {
                               '0%,80%,100%': { transform: 'scale(0.6)', opacity: 0.3 },
-                              '40%':         { transform: 'scale(1)',   opacity: 1 },
+                              '40%':          { transform: 'scale(1)',   opacity: 1 },
                             },
                             animation: `bounce 1.4s infinite ${i * 0.16}s`,
                           }} />
@@ -360,22 +634,23 @@ export default function App() {
                       </Box>
                     </Box>
                   )}
-                  <div ref={endRef} style={{ height: 60 }} />
+                  <div ref={endRef} />
                 </Box>
               </Box>
 
-              {/* Bottom input (sticky when chatting) */}
-              <Box sx={{ pb: 3, pt: 1, px: 2, display: 'flex', justifyContent: 'center', bgcolor: '#ffffff' }}>
+              {/* Bottom input */}
+              <Box sx={{ flexShrink: 0, pb: 3, pt: 1, px: 2, bgcolor: '#ffffff' }}>
                 {chatInput}
               </Box>
             </>
           )}
 
-          {/* Disclaimer */}
-          <Typography variant="caption" sx={{ textAlign: 'center', pb: 1.5, color: 'text.secondary', fontSize: '0.73rem' }}>
-            Copilot CLI 可能会出错。请核查重要信息。
-          </Typography>
-
+          {/* Disclaimer — only in chat mode */}
+          {mode !== 'translate' && (
+            <Typography variant="caption" sx={{ textAlign: 'center', pb: isEmpty ? 0 : 1.5, flexShrink: 0, color: 'text.secondary', fontSize: '0.72rem', lineHeight: 1 }}>
+              Copilot CLI 可能会出错，请核查重要信息。
+            </Typography>
+          )}
         </Box>
       </Box>
     </ThemeProvider>
