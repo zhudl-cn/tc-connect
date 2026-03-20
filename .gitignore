@@ -1,6 +1,6 @@
 # Go binaries
-main
-tc-connect
+/main
+/tc-connect
 *.exe
 *.exe~
 *.dll
